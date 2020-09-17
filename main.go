@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -15,9 +14,10 @@ import (
 )
 
 const (
-	smtpTLSPort = 587
-	dnsPort  = 53
-	dnsServer = "1.1.1.1"
+	smtpPort 	= 25
+	smtpTLSPort = 465
+	dnsPort  	= 53
+	dnsServer 	= "1.1.1.1"
 )
 
 var (
@@ -60,13 +60,17 @@ func checkMailbox(fromDomain, fromEmail, checkEmail string, servers []string) (e
 
 	// try to find a valid mx server to use
 	for _, mx := range servers {
+		/*
 		conn, err := tls.DialWithDialer(
-			defaultDialer, "tcp", fmt.Sprintf("%v:%v", mx, smtpTLSPort),
+			defaultDialer, "tcp", fmt.Sprintf("%s:%d", mx, smtpTLSPort),
 			&tls.Config {
 				InsecureSkipVerify: true,
 				ServerName: mx,
 			},
 		)
+		*/
+
+		conn, err := defaultDialer.Dial("tcp", fmt.Sprintf("%s:%d", mx, smtpPort))
 		if err != nil {
 			log.Debugf("skipping %s: %v", mx, err)
 			continue
@@ -109,15 +113,25 @@ func checkMailbox(fromDomain, fromEmail, checkEmail string, servers []string) (e
 	code, _, err := smtpClient.Text.ReadResponse(25)
 	smtpClient.Text.EndResponse(id)
 
+	if err != nil {
+		return errors.Wrap(err, "smtp response error")
+	}
+
 	if code == 554 {
-		return errors.Wrap(err, "appears our IP is blacklisted")
+		return errors.New("appears our IP is blacklisted")
 	}
 
 	if code == 550 {
-		return errors.Wrap(err, "smtp response was 550")
+		return errors.New("email does not seem to exist (or server blocks detection)")
 	}
 
-	// seems to be valid
+	// seems to be valid email
+	if code == 250 {
+		return nil
+	}
+
+	log.Warnf("unknown code returned: %d", code)
+
 	return nil
 }
 
