@@ -14,15 +14,15 @@ import (
 )
 
 const (
-	smtpPort 	= 25
+	smtpPort    = 25
 	smtpTLSPort = 465
-	dnsPort  	= 53
-	dnsServer 	= "1.1.1.1"
+	dnsPort     = 53
+	dnsServer   = "1.1.1.1"
 )
 
 var (
 	defaultDialer = &net.Dialer{
-		Timeout:   time.Second * 5,
+		Timeout: time.Second * 5,
 	}
 
 	dnsResolver = &net.Resolver{
@@ -61,13 +61,13 @@ func checkMailbox(fromDomain, fromEmail, checkEmail string, servers []string) (e
 	// try to find a valid mx server to use
 	for _, mx := range servers {
 		/*
-		conn, err := tls.DialWithDialer(
-			defaultDialer, "tcp", fmt.Sprintf("%s:%d", mx, smtpTLSPort),
-			&tls.Config {
-				InsecureSkipVerify: true,
-				ServerName: mx,
-			},
-		)
+			conn, err := tls.DialWithDialer(
+				defaultDialer, "tcp", fmt.Sprintf("%s:%d", mx, smtpTLSPort),
+				&tls.Config {
+					InsecureSkipVerify: true,
+					ServerName: mx,
+				},
+			)
 		*/
 
 		conn, err := defaultDialer.Dial("tcp", fmt.Sprintf("%s:%d", mx, smtpPort))
@@ -113,14 +113,11 @@ func checkMailbox(fromDomain, fromEmail, checkEmail string, servers []string) (e
 	code, _, err := smtpClient.Text.ReadResponse(25)
 	smtpClient.Text.EndResponse(id)
 
-	if err != nil {
-		return errors.Wrap(err, "smtp response error")
-	}
-
 	if code == 554 {
 		return errors.New("appears our IP is blacklisted")
 	}
 
+	// seems to be invalid email
 	if code == 550 {
 		return errors.New("email does not seem to exist (or server blocks detection)")
 	}
@@ -131,6 +128,10 @@ func checkMailbox(fromDomain, fromEmail, checkEmail string, servers []string) (e
 	}
 
 	log.Warnf("unknown code returned: %d", code)
+
+	if err != nil {
+		return errors.Wrap(err, "smtp response error")
+	}
 
 	return nil
 }
@@ -147,23 +148,37 @@ func main() {
 		emailDomain, err := extractDomain(email)
 		if err != nil {
 			log.Errorf("could not extract domain: %v", err)
-			if len(emails) == 1 { os.Exit(1) } else { continue }
+			if len(emails) == 1 {
+				os.Exit(1)
+			} else {
+				continue
+			}
 		}
 
 		mxServers, err := lookupMX(emailDomain)
 		if err != nil {
 			log.Errorf("could not retrieve mail server: %v", err)
-			if len(emails) == 1 { os.Exit(1) } else { continue }
+			if len(emails) == 1 {
+				os.Exit(1)
+			} else {
+				continue
+			}
 		}
 
 		if len(mxServers) == 0 {
 			log.Infof("no mail servers found for %s", email)
-			if len(emails) == 1 { os.Exit(0) } else { continue }
+			if len(emails) == 1 {
+				os.Exit(0)
+			} else {
+				continue
+			}
 		}
 
 		if err := checkMailbox("ironpeak.be", "test@ironpeak.be", email, mxServers); err != nil {
 			log.Infof("seems to be invalid (%s)", err)
-			if len(emails) == 1 { os.Exit(1) }
+			if len(emails) == 1 {
+				os.Exit(1)
+			}
 		} else {
 			log.Infof("seems to be valid")
 		}
